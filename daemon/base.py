@@ -2,11 +2,6 @@
 
 import os
 import sys
-
-# FIXME
-# beautiful HACK until I get some stuff figured out.
-sys.path.insert(0, '../mutils')
-
 import sys
 import time
 import tempfile
@@ -22,16 +17,14 @@ import logging.handlers
 import lockfile
 from dateutil.parser import parse as parse_dt
 
-from sqlalchemy import String, ForeignKey
 import daemon
 import daemon.pidfile
-
-from mutils import rest, simple_alchemy
+from sqlalchemy import String, ForeignKey
+from mutils import simple_alchemy, rest
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-DIR_PATH = None
 
 repos_schema = [
     ('name', String),
@@ -54,23 +47,21 @@ class GithubFeed(object):
     _session = None
 
     @classmethod
-    def get_db_session(cls):
+    def get_db_session(cls, dir_path):
         if cls._session is not None:
             return cls._session
-        db_path = os.path.join(os.path.abspath(DIR_PATH), 'db.sqlite3')
+        db_path = os.path.join(os.path.abspath(dir_path), 'db.sqlite3')
         cls._session = simple_alchemy.get_session(db_path)
         return cls._session
 
-    def __init__(self, dir_path):
-        global DIR_PATH
-        self.dir_path = DIR_PATH = os.path.abspath(dir_path)
+    def __init__(self, dir_path, api_auth):
+        self.dir_path = os.path.abspath(dir_path)
+        self.api_auth = api_auth
         self.repos = simple_alchemy.get_table_class('repos', schema=repos_schema)
         self.commits = simple_alchemy.get_table_class('commits', schema=commits_schema, include_id=False)
 
     def get_repos(self):
-        api_auth_file = os.path.join(self.dir_path, 'API_AUTH')
-        logger.debug('reading {}'.format(api_auth_file))
-        username, api_token = open(api_auth_file).read().strip().split(':')
+        username, api_token = self.api_auth
         auth = HTTPBasicAuth(username, api_token)
         location = '/users/{username}/repos'.format(username=username)
         url = urllib.parse.urlunparse(('https', 'api.github.com', location, '', '', ''))
@@ -81,7 +72,7 @@ class GithubFeed(object):
         return repos
 
     def update_repos(self, repos):
-        session = self.get_db_session()
+        session = self.get_db_session(self.dir_path)
         updates = []
         for repo in repos:
             repo_data = {}
@@ -95,16 +86,14 @@ class GithubFeed(object):
         session.commit()
 
     def update_commits(self, repos):
-        api_auth_file = os.path.join(self.dir_path, 'API_AUTH')
-        logger.debug('reading {}'.format(api_auth_file))
-        username, api_token = open(api_auth_file).read().strip().split(':')
+        username, api_token = self.api_auth
         auth = HTTPBasicAuth(username, api_token)
         location = '/users/{username}/repos'.format(username=username)
         url = urllib.parse.urlunparse(('https', 'api.github.com', location, '', '', ''))
         now = datetime.datetime.now(tz=pytz.UTC)
         since = now - datetime.timedelta(days=365)
         since = since.strftime('%Y-%m-%dT%H:%M:%SZ')
-        session = self.get_db_session()
+        session = self.get_db_session(self.dir_path)
         updates = []
         for repo in repos:
             location = '/repos/{username}/{repo}/commits'.format(username=username, repo=repo['name'])
@@ -127,9 +116,86 @@ class GithubFeed(object):
         session.add_all(updates)
         session.commit()
 
-if __name__ == '__main__':
+    def worker(self):
+        """Fetch and update github data every 600s
+        """
+        def exception_handler(type_, value, tb):
+            logger.exception('uncaught exception on line {}; {}: {}'.format(
+                tb.tb_lineno,
+                type_.__name__,
+                value,
+            ))
+            sys.__excepthook__(type_, value, tb)
+        sys.excepthook = exception_handler
+        # ...and log to a file (syslog difficulties. tbd...)
+        fh = logging.FileHandler(os.path.join(self.dir_path, 'gitbored-daemon.log'))
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        fh.setLevel(logging.DEBUG)
+        logger.addHandler(fh)
 
-    hf = GithubFeed(dir_path='.')
-    data = hf.get_repos()
-    hf.update_repos(data)
-    hf.update_commits(data)
+        while True:
+            # data = self.get_repos()
+            # self.update_repos(data)
+            # self.update_commits(data)
+            logger.debug('sleeping 600s')
+            time.sleep(600)
+
+
+def main():
+    """gitbored-daemon command line interface. Usage:
+
+        gitbored-daemon [--daemon] <dir_path>
+
+    <dir_path> should be writable and will contain both logs and the sqlite database file.
+    """
+
+    if len(sys.argv) == 1:
+        # Are needs are not complex enough to justify argprse...
+        print('usage: {} [--daemon] <directory>'.format(os.path.basename(__file__)))
+        sys.exit(1)
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    logger.addHandler(ch)
+
+    if '--daemon' in sys.argv:
+        script_name, _, dir_path = sys.argv
+        daemonize = True
+    else:
+        script_name, dir_path = sys.argv
+        daemonize = False
+
+    dir_path = os.path.abspath(dir_path)
+    api_auth_file = os.path.join(os.path.expanduser('~/.gitbored'), 'API_AUTH')
+
+    try:
+        logger.debug('reading {}'.format(api_auth_file))
+        api_auth = open(api_auth_file).read().strip().split(':')
+    except FileNotFoundError:
+        message = (
+            'api_auth_file not found. Please create a file {} with the format:\n'
+            '\n'
+            '<github_user>:<github_api_key>\n'
+            '\n'
+            '(setting permissions appropriately)\n'.format(api_auth_file)
+        )
+        print(message)
+        raise
+
+    if daemonize:
+        logger.debug('daemonizing')
+        gf = GithubFeed(dir_path, api_auth)
+        gf.worker()
+        # with daemon.DaemonContext(
+        #         working_directory=dir_path,
+        #         pidfile=daemon.pidfile.PIDLockFile(os.path.join(dir_path, 'pid')),
+        # ):
+        #     pass
+    else:
+        logger.debug('not daemonizing')
+        gf = GithubFeed(dir_path, api_auth)
+        gf.worker()
+
+if __name__ == '__main__':
+    main()
