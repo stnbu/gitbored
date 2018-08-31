@@ -1,0 +1,20 @@
+#github-dashboard a:link { color: inherit; }
+#github-dashboard a:visited { color: inherit; }
+#github-dashboard a:hover { color: inherit; }
+#github-dashboard a:active { color: inherit; }
+
+.repo {
+    border-bottom: 1px solid;
+}
+
+.commit-message {
+    font-family: monospace;
+}
+
+.repo-list {
+    list-style: none;
+}
+
+.commit-list {
+    list-style: none;
+}

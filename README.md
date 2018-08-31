@@ -1,0 +1,1 @@
+This is a very simple Django App for displaying recent, personal GitHub activity, using the GitHub API. Missing here is a little daemon (https://github.com/stnbu/github_dashboard/blob/master/main.py) that separately updates the data. Will add to this project later -- Mike Burr <mburr@unintuitive.org>

@@ -1,0 +1,52 @@
+<!DOCTYPE html class="oldie">
+{% load static %}
+<!--
+     Hello. I'm often looking for new opportunities. This website serves as
+     an opportunity for me to resurrect my Django skills. It's nothing
+     spectacular, but it represents only a few days' effort. Improvements
+     to come...
+
+     I'm interested in full-time employment as well as opportunities to
+     contribute to interesting open source projects. Feel free to contact
+     me!
+
+     Source: https://github.com/stnbu/oleo
+
+     Mike Burr <mburr@unintuitive.org>
+-->
+<html lang="en">
+    <head>
+	<meta charset="utf-8"/>
+	<title>Mike Burr -- GitHub Looksee</title>
+	<link rel="stylesheet" type="text/css" href="{% static 'gitbored/style.css' %}">
+    </head>
+    <body id="github-dashboard" >
+	<h1>We're not done here...</h1>
+	<p><a href="https://github.com/stnbu/gitbored">This is a little django app</a> that <a href="https://github.com/stnbu/">I've</a> created to list out my most recent github commits. (I'm trying not to say "under construction" here...)</p>
+	<p>Please enjoy!</p>
+	<ul class="repo-list">
+	    {% for repo, commits, blurb in repos_list %}
+	    <li class="repo">
+
+		<h2 class="repo-title">Name: <a href="{{ repo.html_url }}">{{ repo.name }}</a></h2>
+		{% if repo.description %}
+		<p class="repo-description">{{ repo.description }}</p>
+		{% endif %}  {# repo.description #}
+
+		{% if blurb %}
+		<p class="blurb">{{ blurb }}</p>
+		{% endif %}  {# blurb #}
+
+		<ul class="commit-list">
+		    {% for commit in commits %}
+		    <li class="commit">
+			<h3 class="commit-hash">commit: <a href="{{ commit.html_url }}">{{ commit.sha }}</a></h3>
+			<p class="commit-message">{{ commit.commit_message }}</p>
+		    </li>
+		    {% endfor %}  {# commits #}
+		</ul>
+	    </li>
+	    {% endfor %}  {# repos_list #}
+	</ul>
+    </body>
+</html>
