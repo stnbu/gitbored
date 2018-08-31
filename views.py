@@ -2,6 +2,7 @@ from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponseRedirect
 from .models import Repos, Commits, Blurbs
 
+
 def index(request):
     repos = Repos.objects.order_by('-updated_at')
     repos_ = []

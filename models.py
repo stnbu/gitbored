@@ -1,4 +1,6 @@
 from django.db import models
+from docutils import core
+
 
 class Repos(models.Model):
     id = models.IntegerField(primary_key=True)
@@ -14,18 +16,26 @@ class Repos(models.Model):
 
     def __str__(self):
         return self.name
-        
+
+
 class Commits(models.Model):
-    #repo = models.ForeignKey('Repos', on_delete=models.DO_NOTHING, db_column='repo', primary_key=True)
     repo = models.TextField()
     sha = models.TextField(unique=True, primary_key=True)
     commit_message = models.TextField(blank=True, null=True)
     author_login = models.TextField(blank=True, null=True)
     html_url = models.TextField(blank=True, null=True)
 
+    @property
+    def message_html(self):
+        parts = core.publish_parts(
+            source=self.commit_message,
+            writer_name='html')
+        return parts['body_pre_docinfo'] + parts['fragment']
+
     class Meta:
         managed = False
         db_table = 'commits'
+
 
 class Blurbs(models.Model):
     repo_id = models.OneToOneField(
@@ -38,4 +48,3 @@ class Blurbs(models.Model):
     class Meta:
         managed = True
         db_table = 'blurbs'
-        

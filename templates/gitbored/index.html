@@ -41,7 +41,7 @@
 		    {% for commit in commits %}
 		    <li class="commit">
 			<h3 class="commit-hash">commit: <a href="{{ commit.html_url }}">{{ commit.sha }}</a></h3>
-			<p class="commit-message">{{ commit.commit_message }}</p>
+			<div class="commit-message">{{ commit.message_html|safe }}</div>
 		    </li>
 		    {% endfor %}  {# commits #}
 		</ul>

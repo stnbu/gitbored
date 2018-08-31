@@ -8,7 +8,7 @@
 }
 
 .commit-message {
-    font-family: monospace;
+    all: unset;
 }
 
 .repo-list {
