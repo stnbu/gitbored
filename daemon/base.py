@@ -135,9 +135,9 @@ class GithubFeed(object):
         logger.addHandler(fh)
 
         while True:
-            # data = self.get_repos()
-            # self.update_repos(data)
-            # self.update_commits(data)
+            data = self.get_repos()
+            self.update_repos(data)
+            self.update_commits(data)
             logger.debug('sleeping 600s')
             time.sleep(600)
 
