@@ -185,13 +185,12 @@ def main():
 
     if daemonize:
         logger.debug('daemonizing')
-        gf = GithubFeed(dir_path, api_auth)
-        gf.worker()
-        # with daemon.DaemonContext(
-        #         working_directory=dir_path,
-        #         pidfile=daemon.pidfile.PIDLockFile(os.path.join(dir_path, 'pid')),
-        # ):
-        #     pass
+        with daemon.DaemonContext(
+                working_directory=dir_path,
+                pidfile=daemon.pidfile.PIDLockFile(os.path.join(dir_path, 'pid')),
+        ):
+            gf = GithubFeed(dir_path, api_auth)
+            gf.worker()
     else:
         logger.debug('not daemonizing')
         gf = GithubFeed(dir_path, api_auth)
