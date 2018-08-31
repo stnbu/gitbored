@@ -3,14 +3,6 @@
 #github-dashboard a:hover { color: inherit; }
 #github-dashboard a:active { color: inherit; }
 
-.repo {
-    /* border-bottom: 1px solid; */
-}
-
-.commit-message {
-    font-family: "Helvetica Neue Light", "HelveticaNeue-Light", "Helvetica Neue", Calibri, Helvetica, Arial, sans-serif;
-}
-
 .rst {
     all: unset;
 }
@@ -23,9 +15,7 @@ a.commit-link {
 .shadow-box {
     border-radius: 10px;
     width: 75%;
-    height: 150px;
     padding: 15px;
-    /* background-color: yellow; */
     box-shadow: 8px 8px 30px grey;
     background-color: ghostwhite;
 }
@@ -36,7 +26,6 @@ a.commit-link {
 
 .commit-list {
     list-style: none;
-    padding-top: 80px;
     padding-bottom: 80px;
 }
 
