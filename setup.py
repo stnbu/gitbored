@@ -6,7 +6,9 @@ _author = 'Mike Burr'
 _email = 'mburr@unintuitive.com'
 __author__ = '%s <%s>' % (_author, _email)
 
-name = package.__name__
+import gitbored
+
+name = gitbored.__name__
 
 def read(file):
     with open(file, 'r') as f:
@@ -14,10 +16,13 @@ def read(file):
 
 setup(
     name=name,
-    version='0.0.1-%s' % time.time(),
+    version='0.0.1-%s' % time.time(),  # HACK
     long_description=read('README.md'),
     author=_author,
     author_email=_email,
     provides=[name],
     packages=[name],
+        entry_points = {
+        'console_scripts': ['gitbored-daemon=gitbored.daemon:main'],
+    }
 )
