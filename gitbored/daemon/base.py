@@ -71,6 +71,10 @@ class GithubFeed(object):
         session = self.get_db_session(self.dir_path)
         updates = []
         for repo in repos:
+            # ZZZ FIXME HACK... We want to update, not just skip existing 'repo'
+            existing_repo = session.query(self.repos).filter_by(name=repo['name']).first()
+            if existing_repo:
+                continue
             repo_data = {}
             repo_data['name'] = repo['name']
             repo_data['description'] = repo['description']
