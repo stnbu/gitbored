@@ -31,7 +31,7 @@ repos_schema = [
 ]
 
 commits_schema = [
-    ('repo', ((String, ForeignKey('repos.name')), {'nullable': False})),
+    ('repo', String),
     ('sha', ((String,), {'primary_key': True})),
     ('commit_message', String),
     ('author_login', String),
