@@ -2,3 +2,4 @@ git+https://github.com/stnbu/mutils.git@ef31916361a3647a5fb37be13d9d10844b2c0c3f
 python-daemon>=2.2
 SQLAlchemy>=1.2.11
 requests>=2.18
+python-dateutil>=2.7
