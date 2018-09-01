@@ -1,20 +1,16 @@
 # -*- mode: python; coding: utf-8 -*-
+"""Fetch GitHub data via the GitHub API, write it to a local database (sqlite3). Features daemonization.
+"""
 
 import os
 import sys
-import sys
 import time
-import tempfile
-import re
-import requests
 import datetime
 import pytz
-import json
 import urllib
 from requests.auth import HTTPBasicAuth
 import logging
 import logging.handlers
-import lockfile
 from dateutil.parser import parse as parse_dt
 
 import daemon
@@ -127,7 +123,7 @@ class GithubFeed(object):
             ))
             sys.__excepthook__(type_, value, tb)
         sys.excepthook = exception_handler
-        # ...and log to a file (syslog difficulties. tbd...)
+
         fh = logging.FileHandler(os.path.join(self.dir_path, 'gitbored-daemon.log'))
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
@@ -195,6 +191,3 @@ def main():
         logger.debug('not daemonizing')
         gf = GithubFeed(dir_path, api_auth)
         gf.worker()
-
-if __name__ == '__main__':
-    main()
