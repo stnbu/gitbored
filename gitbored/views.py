@@ -7,7 +7,8 @@ def index(request):
     repos = Repos.objects.order_by('-updated_at')
     repos_ = []
     for repo in repos:
-        commits = Commits.objects.filter(repo=repo.name)[:5]
+        commits = Commits.objects.filter(repo=repo.name)
+        commits = list(reversed(commits))[:10]
         try:
             blurb = Blurbs.objects.get(repo_id=repo.id).blurb
         except Blurbs.DoesNotExist:   # what is the right way...?
