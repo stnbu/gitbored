@@ -12,10 +12,12 @@ from requests.auth import HTTPBasicAuth
 import logging
 import logging.handlers
 from dateutil.parser import parse as parse_dt
+import requests
+from requests.structures import CaseInsensitiveDict as HTTPHeaders
 
 import daemon
 import daemon.pidfile
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String
 from mutils import simple_alchemy, rest
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ commits_schema = [
     ('author_login', String),
     ('html_url', String),
 ]
+
 
 class GithubFeed(object):
 
@@ -195,3 +198,86 @@ def main():
         logger.debug('not daemonizing')
         gf = GithubFeed(dir_path, api_auth)
         gf.worker()
+
+
+class GitHubAPI(object):
+    """A reasonably thin wrapper for the GitHub API. Stores important state stuff and makes life
+    easier without imposing anything unreasonable.
+    """
+
+    scheme = 'https'
+    domain = 'api.github.com'
+    # last_get is meant to help comply with GitHub's API rate restrictions. the interval may be per-location.
+    # either way, we do the conservative thing and make it class-wide
+    last_get = None
+
+    def __init__(self, auth):
+        self.username, _ = auth
+        self.auth = HTTPBasicAuth(*auth)
+        self.cache = HTTPHeaders()
+        logger.debug('created {}'.format(self))
+
+    def __str__(self):
+        return self.username
+
+    def get_url(self, location, query=''):
+        """Based on the supplied `location` and `query`, use `urlunparse` as a sort of "gauntlet" that we get a valid URL.
+        """
+        return urllib.parse.urlunparse((
+            self.scheme,
+            self.domain,
+            location,
+            '',
+            query,
+            ''
+        ))
+
+    def get(self, location, query=''):
+        """Requiring the minimum information possible, "get" a "location", obey rate restrictions and use Etag.
+        """
+        if url not in self.cache:
+            self.cache[url] = {}
+        interval = self.cache[location].get('X-Poll-Interval', 60)
+        now = time.time()
+        if self.last_get is not None and now - self.last_get < interval:
+            logger.debug('{} - {} < {} -- returning cache'.format(now, self.last_get, interval))
+            return self.cache[location]['json']
+
+        etag = self.cache[location].get('Etag', None)
+
+        request_headers = HTTPHeaders()
+        request_headers['If-None-Match'] = etag
+        logger.debug('getting: {}'.format(url))
+        response = requests.get(url, auth=self.auth, headers=request_headers)
+        self.last_get = time.time()
+        self.cache[location]['Etag'] = response.headers.get('Etag', None)
+        if 'X-Poll-Interval' in response.headers:
+            self.cache[location]['X-Poll-Interval'] = float(response.headers['X-Poll-Interval'])
+
+        if response.status_code == 304:
+            logger.debug('{}: {} -- returning cache'.format(response.status_code, response.reason))
+            return self.cache[location]['json']
+
+        if response.status_code != 200:
+            message = '{}: {}'.format(response.status_code, response.reason)
+            logger.exception(message)
+            raise Exception(message)
+
+        response_json = response.json()
+        logger.debug('sucessfully got {} bytes'.format(len(response.content)))  # bytes?
+        self.cache[location]['json'] = response_json
+        return response_json
+
+
+if __name__ == '__main__':
+
+    from time import sleep
+    api_auth_file = os.path.join(os.path.expanduser('~/.gitbored'), 'API_AUTH')
+    auth = open(api_auth_file).read().strip().split(':')
+    a = GitHubAPI(auth=auth)
+    while True:
+        url = a.get_url('/users/{}/events'.format(a.username))
+        r = a.get(url)
+        import ipdb
+        ipdb.set_trace()
+        time.sleep(61)
