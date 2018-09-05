@@ -12,8 +12,20 @@ et cetera.
 import django
 from .settings import *
 from django.conf import settings
+from django.db import connections
+import atexit
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 settings.configure(DATABASES=DATABASES)
 django.setup()
 
 from .models import *
+
+def cleanup():
+    logger.info('closing all django database connections for this process')
+    connections.close_all()
+
+atexit.register(cleanup)

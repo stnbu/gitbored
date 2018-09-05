@@ -35,9 +35,12 @@ class GithubFeed(object):
     def update_repos(self):
         updates = []
         url = self.gapi.get_url('/users/{username}/repos'.format(username=self.gapi.username))
-        for repo in self.gapi.get(url):
+        repos = self.gapi.get(url)
+        logger.debug('considering {} repos...'.format(len(repos)))
+        for repo in repos:
             existing_repo = db.Repos.objects.filter(name=repo['name'])
             if existing_repo:
+                logger.debug('  ...already have {}, skipping'.format(repo['name']))
                 continue
             repo_data = {}
             repo_data['name'] = repo['name']
@@ -45,7 +48,9 @@ class GithubFeed(object):
             repo_data['owner_login'] = repo['owner']['login']
             repo_data['updated_at'] = repo['updated_at']
             repo_data['html_url'] = repo['html_url']
+            logger.debug('  ...updating {}'.format(repo['name']))
             updates.append(db.Repos(**repo_data))
+        logger.debug('bulk-updating {} records into Repos'.format(len(updates)))
         db.Repos.objects.bulk_create(updates)
 
     def update_commits(self):
@@ -56,18 +61,27 @@ class GithubFeed(object):
             if event['type'] != 'PushEvent':
                 continue
             commits = event['payload'].get('commits', [])
+            logger.debug('examining {} commits'.format(len(commits)))
             for commit in commits:
                 commit = flatten(commit)
                 if db.Commits.objects.filter(sha=commit['sha']):
+                    logger.debug('we already have {}, skipping'.format(commit['sha']))
                     continue
                 detail = self.gapi.get(commit['url'])
                 commit.update(flatten(detail))
                 fields = db.Commits._meta.get_fields()
                 kwargs = {}
+                logger.debug('calculating values for Commits fields...')
                 for field in fields:
                     if field.name in commit:
+                        logger.debug('  ...setting {}'.format(field.name))
                         kwargs[field.name] = commit[field.name]
+                # FIXME -- unfortunate hack
+                logger.info('  ...setting {} (with hack)'.format(field.name))
+                repo = kwargs['url'].split('/')[5]
+                kwargs['repo'] = repo
                 updates.append(db.Commits(**kwargs))
+        logger.debug('bulk-updating {} records into Commits'.format(len(updates)))
         db.Commits.objects.bulk_create(updates)
 
     def worker(self):
@@ -89,6 +103,7 @@ class GithubFeed(object):
         logger.addHandler(fh)
 
         while True:
+            logger.debug('updating GitHub info...')
             self.update_repos()
             self.update_commits()
             logger.debug('sleeping 600s')

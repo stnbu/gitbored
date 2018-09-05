@@ -25,7 +25,7 @@
 	<p><a href="https://github.com/stnbu/gitbored">This is a little django app</a> that <a href="https://github.com/stnbu/">I've</a> created to list out my most recent github commits. (I'm trying not to say "under construction" here...)</p>
 	<p>Please enjoy!</p>
 	<ul class="repo-list">
-	    {% for repo, commits, blurb in repos_list %}
+	    {% for repo, blurb, commits in repos_list %}
 	    <li class="repo">
 
 		<h2 class="repo-title">Repository Name: <a href="{{ repo.html_url }}">{{ repo.name }}</a></h2>
