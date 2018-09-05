@@ -20,10 +20,9 @@ from collections import Mapping
 import daemon
 import daemon.pidfile
 
-from gitbored import db
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# this module "proxies" the django ORM using magic
+import db
+from gitbored import logger
 
 class GithubFeed(object):
 
