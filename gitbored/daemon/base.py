@@ -14,68 +14,29 @@ import logging.handlers
 from dateutil.parser import parse as parse_dt
 import requests
 from requests.structures import CaseInsensitiveDict as HTTPHeaders
+import json
+from collections import Mapping
 
 import daemon
 import daemon.pidfile
-from sqlalchemy import String
-from mutils import simple_alchemy, rest
+
+from gitbored import db
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
-repos_schema = [
-    ('name', String),
-    ('description', String),
-    ('owner_login', String),
-    ('updated_at', String),
-    ('html_url', String),
-]
-
-commits_schema = [
-    ('repo', String),
-    ('sha', ((String,), {'primary_key': True})),
-    ('commit_message', String),
-    ('author_login', String),
-    ('html_url', String),
-]
-
-
 class GithubFeed(object):
-
-    _session = None
-
-    @classmethod
-    def get_db_session(cls, dir_path):
-        if cls._session is not None:
-            return cls._session
-        db_path = os.path.join(os.path.abspath(dir_path), 'db.sqlite3')
-        cls._session = simple_alchemy.get_session(db_path)
-        return cls._session
 
     def __init__(self, dir_path, api_auth):
         self.dir_path = os.path.abspath(dir_path)
         self.api_auth = api_auth
-        self.repos = simple_alchemy.get_table_class('repos', schema=repos_schema)
-        self.commits = simple_alchemy.get_table_class('commits', schema=commits_schema, include_id=False)
+        self.gapi = GitHubAPI(api_auth)
 
-    def get_repos(self):
-        username, api_token = self.api_auth
-        auth = HTTPBasicAuth(username, api_token)
-        location = '/users/{username}/repos'.format(username=username)
-        url = urllib.parse.urlunparse(('https', 'api.github.com', location, '', '', ''))
-        data = rest.get_json(url, auth=auth)
-        public_repos = [r for r in data if not r['private']]
-        repos = sorted(public_repos, key=lambda r: parse_dt(r['updated_at']), reverse=True)[:5]
-        logger.debug('got {} repo records'.format(len(repos)))
-        return repos
-
-    def update_repos(self, repos):
-        session = self.get_db_session(self.dir_path)
+    def update_repos(self):
         updates = []
-        for repo in repos:
-            # ZZZ FIXME HACK... We want to update, not just skip existing 'repo'
-            existing_repo = session.query(self.repos).filter_by(name=repo['name']).first()
+        url = self.gapi.get_url('/users/{username}/repos'.format(username=self.gapi.username))
+        for repo in self.gapi.get(url):
+            existing_repo = db.Repos.objects.filter(name=repo['name'])
             if existing_repo:
                 continue
             repo_data = {}
@@ -84,40 +45,30 @@ class GithubFeed(object):
             repo_data['owner_login'] = repo['owner']['login']
             repo_data['updated_at'] = repo['updated_at']
             repo_data['html_url'] = repo['html_url']
-            updates.append(self.repos(**repo_data))
-        session.add_all(updates)
-        session.commit()
+            updates.append(db.Repos(**repo_data))
+        db.Repos.objects.bulk_create(updates)
 
-    def update_commits(self, repos):
-        username, api_token = self.api_auth
-        auth = HTTPBasicAuth(username, api_token)
-        location = '/users/{username}/repos'.format(username=username)
-        url = urllib.parse.urlunparse(('https', 'api.github.com', location, '', '', ''))
-        now = datetime.datetime.now(tz=pytz.UTC)
-        since = now - datetime.timedelta(days=365)
-        since = since.strftime('%Y-%m-%dT%H:%M:%SZ')
-        session = self.get_db_session(self.dir_path)
+    def update_commits(self):
+        url = self.gapi.get_url('/users/{}/events'.format(self.gapi.username))
+        events = self.gapi.get(url)
         updates = []
-        for repo in repos:
-            location = '/repos/{username}/{repo}/commits'.format(username=username, repo=repo['name'])
-            query = 'since={since}'.format(since=since)
-            url = urllib.parse.urlunparse(('https', 'api.github.com', location, '', query, ''))
-            commits = rest.get_json(url, auth=auth)
-            logger.debug('got {} commits for repo {}'.format(len(commits), repo['name']))
-            commit_data = {}
-            # TODO: how are they ordered? Get the most recent...
+        for event in events:
+            if event['type'] != 'PushEvent':
+                continue
+            commits = event['payload'].get('commits', [])
             for commit in commits:
-                existing_commit = session.query(self.commits).filter_by(sha=commit['sha']).first()
-                if existing_commit:
+                commit = flatten(commit)
+                if db.Commits.objects.filter(sha=commit['sha']):
                     continue
-                commit_data['repo'] = repo['name']
-                commit_data['sha'] = commit['sha']
-                commit_data['commit_message'] = commit['commit']['message']
-                commit_data['author_login'] = commit['author']['login']
-                commit_data['html_url'] = commit['html_url']
-                updates.append(self.commits(**commit_data))
-        session.add_all(updates)
-        session.commit()
+                detail = self.gapi.get(commit['url'])
+                commit.update(flatten(detail))
+                fields = db.Commits._meta.get_fields()
+                kwargs = {}
+                for field in fields:
+                    if field.name in commit:
+                        kwargs[field.name] = commit[field.name]
+                updates.append(db.Commits(**kwargs))
+        db.Commits.objects.bulk_create(updates)
 
     def worker(self):
         """Fetch and update github data every 600s
@@ -138,11 +89,88 @@ class GithubFeed(object):
         logger.addHandler(fh)
 
         while True:
-            data = self.get_repos()
-            self.update_repos(data)
-            self.update_commits(data)
+            self.update_repos()
+            self.update_commits()
             logger.debug('sleeping 600s')
             time.sleep(600)
+
+
+class GitHubAPI(object):
+    """A reasonably thin wrapper for the GitHub API. Stores important state stuff and makes life
+    easier without imposing anything unreasonable.
+    """
+
+    scheme = 'https'
+    domain = 'api.github.com'
+
+    def __init__(self, auth):
+        self.username, _ = auth
+        self.auth = HTTPBasicAuth(*auth)
+        self.cache = HTTPHeaders()
+        logger.debug('created {}'.format(self))
+
+    def __str__(self):
+        return self.username
+
+    def get_url(self, location, query=''):
+        """Based on the supplied `location` and `query`, use `urlunparse` as a sort of "gauntlet" that we get a valid URL.
+        """
+        return urllib.parse.urlunparse((
+            self.scheme,
+            self.domain,
+            location,
+            '',
+            query,
+            ''
+        ))
+
+    def get(self, url):
+        """Requiring the minimum information possible, "get" a "url", obey rate restrictions and use Etag.
+        """
+        if url not in self.cache:
+            self.cache[url] = {}
+        interval = self.cache[url].get('X-Poll-Interval', 60)
+        now = time.time()
+        last_get = self.cache[url].get('last_get', 0)
+        if last_get is not None and now - last_get < interval:
+            logger.debug('{} - {} < {} -- returning cache'.format(now, last_get, interval))
+            return self.cache[url]['json']
+
+        etag = self.cache[url].get('Etag', None)
+
+        request_headers = HTTPHeaders()
+        request_headers['If-None-Match'] = etag
+        logger.debug('getting: {}'.format(url))
+        response = requests.get(url, auth=self.auth, headers=request_headers)
+        self.cache[url]['last_get'] = time.time()
+        self.cache[url]['Etag'] = response.headers.get('Etag', None)
+        if 'X-Poll-Interval' in response.headers:
+            self.cache[url]['X-Poll-Interval'] = float(response.headers['X-Poll-Interval'])
+
+        if response.status_code == 304:
+            logger.debug('{}: {} -- returning cache'.format(response.status_code, response.reason))
+            return self.cache[url]['json']
+
+        if response.status_code != 200:
+            message = '{}: {}'.format(response.status_code, response.reason)
+            logger.exception(message)
+            raise Exception(message)
+
+        response_json = response.json()
+        logger.debug('sucessfully got {} bytes'.format(len(response.content)))  # bytes?
+        self.cache[url]['json'] = response_json
+        return response_json
+
+
+def flatten(my_dict, existing_dict=None, key_suffix=''):
+    if existing_dict is None:
+        existing_dict = {}
+    for key, value in my_dict.items():
+        if not isinstance(value, Mapping):
+            existing_dict[key_suffix + key] = value
+        else:
+            flatten(value, existing_dict, key_suffix=key+'_')
+    return existing_dict
 
 
 def main():
@@ -200,84 +228,5 @@ def main():
         gf.worker()
 
 
-class GitHubAPI(object):
-    """A reasonably thin wrapper for the GitHub API. Stores important state stuff and makes life
-    easier without imposing anything unreasonable.
-    """
-
-    scheme = 'https'
-    domain = 'api.github.com'
-    # last_get is meant to help comply with GitHub's API rate restrictions. the interval may be per-location.
-    # either way, we do the conservative thing and make it class-wide
-    last_get = None
-
-    def __init__(self, auth):
-        self.username, _ = auth
-        self.auth = HTTPBasicAuth(*auth)
-        self.cache = HTTPHeaders()
-        logger.debug('created {}'.format(self))
-
-    def __str__(self):
-        return self.username
-
-    def get_url(self, location, query=''):
-        """Based on the supplied `location` and `query`, use `urlunparse` as a sort of "gauntlet" that we get a valid URL.
-        """
-        return urllib.parse.urlunparse((
-            self.scheme,
-            self.domain,
-            location,
-            '',
-            query,
-            ''
-        ))
-
-    def get(self, location, query=''):
-        """Requiring the minimum information possible, "get" a "location", obey rate restrictions and use Etag.
-        """
-        if url not in self.cache:
-            self.cache[url] = {}
-        interval = self.cache[location].get('X-Poll-Interval', 60)
-        now = time.time()
-        if self.last_get is not None and now - self.last_get < interval:
-            logger.debug('{} - {} < {} -- returning cache'.format(now, self.last_get, interval))
-            return self.cache[location]['json']
-
-        etag = self.cache[location].get('Etag', None)
-
-        request_headers = HTTPHeaders()
-        request_headers['If-None-Match'] = etag
-        logger.debug('getting: {}'.format(url))
-        response = requests.get(url, auth=self.auth, headers=request_headers)
-        self.last_get = time.time()
-        self.cache[location]['Etag'] = response.headers.get('Etag', None)
-        if 'X-Poll-Interval' in response.headers:
-            self.cache[location]['X-Poll-Interval'] = float(response.headers['X-Poll-Interval'])
-
-        if response.status_code == 304:
-            logger.debug('{}: {} -- returning cache'.format(response.status_code, response.reason))
-            return self.cache[location]['json']
-
-        if response.status_code != 200:
-            message = '{}: {}'.format(response.status_code, response.reason)
-            logger.exception(message)
-            raise Exception(message)
-
-        response_json = response.json()
-        logger.debug('sucessfully got {} bytes'.format(len(response.content)))  # bytes?
-        self.cache[location]['json'] = response_json
-        return response_json
-
-
 if __name__ == '__main__':
-
-    from time import sleep
-    api_auth_file = os.path.join(os.path.expanduser('~/.gitbored'), 'API_AUTH')
-    auth = open(api_auth_file).read().strip().split(':')
-    a = GitHubAPI(auth=auth)
-    while True:
-        url = a.get_url('/users/{}/events'.format(a.username))
-        r = a.get(url)
-        import ipdb
-        ipdb.set_trace()
-        time.sleep(61)
+    main()
