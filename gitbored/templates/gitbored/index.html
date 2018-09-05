@@ -1,57 +1,42 @@
-<!DOCTYPE html>
-{% load static %}
-<!--
-     Hello. I'm often looking for new opportunities. This website serves as
-     an opportunity for me to resurrect my Django skills. It's nothing
-     spectacular, but it represents only a few days' effort. Improvements
-     to come...
+<div id="gitbored">
+    <!--
+	 Hello. I'm often looking for new opportunities.
 
-     I'm interested in full-time employment as well as opportunities to
-     contribute to interesting open source projects. Feel free to contact
-     me!
+	 I'm interested in full-time employment as well as opportunities to
+	 contribute to interesting open source projects. Feel free to contact
+	 me!
 
-     Source: https://github.com/stnbu/oleo
+	 Source: https://github.com/stnbu/gitbored
 
-     Mike Burr <mburr@unintuitive.org>
--->
-<html lang="en">
-    <head>
-	<meta charset="utf-8"/>
-	<title>Mike Burr -- GitHub Looksee</title>
-	<link rel="stylesheet" type="text/css" href="{% static 'gitbored/style.css' %}">
-    </head>
-    <body id="github-dashboard" >
-	<h1>We're not done here...</h1>
-	<p><a href="https://github.com/stnbu/gitbored">This is a little django app</a> that <a href="https://github.com/stnbu/">I've</a> created to list out my most recent github commits. (I'm trying not to say "under construction" here...)</p>
-	<p>Please enjoy!</p>
-	<ul class="repo-list">
-	    {% for repo, blurb, commits in repos_list %}
-	    <li class="repo">
+	 Mike Burr <mburr@unintuitive.org>
+    -->
+    <ul class="repo-list">
+	{% for repo, blurb, commits in repos_list %}
+	<li class="repo">
 
-		<h2 class="repo-title">Repository Name: <a href="{{ repo.html_url }}">{{ repo.name }}</a></h2>
-		{% if repo.description %}
-		<p class="repo-description shadow-box">{{ repo.description }}</p>
-		{% endif %}  {# repo.description #}
+	    <h2 class="repo-title">Repository Name: <a href="{{ repo.html_url }}">{{ repo.name }}</a></h2>
+	    {% if repo.description %}
+	    <p class="repo-description shadow-box">{{ repo.description }}</p>
+	    {% endif %}  {# repo.description #}
 
-		{% if blurb %}
-		<p class="blurb shadow-box">{{ blurb }}</p>
-		{% endif %}  {# blurb #}
+	    {% if blurb %}
+	    <p class="blurb shadow-box">{{ blurb }}</p>
+	    {% endif %}  {# blurb #}
 
-		<h3>Commits...</h3>
-		<ul class="commit-list">
-		    {% for commit in commits %}
-		    <li class="commit">
-			<a class="commit-link" href="{{ commit.html_url }}">
-			    <div class="commit-hash">{{ commit.sha }}</div>
-			    <div class="rst">
-				<div class="commit-message shadow-box">{{ commit.message_html|safe }}</div>
-			    </div>
-			</a>
-		    </li>
-		    {% endfor %}  {# commits #}
-		</ul>
-	    </li>
-	    {% endfor %}  {# repos_list #}
-	</ul>
-    </body>
-</html>
+	    <h3>Commits...</h3>
+	    <ul class="commit-list">
+		{% for commit in commits %}
+		<li class="commit">
+		    <a class="commit-link" href="{{ commit.html_url }}">
+			<div class="commit-hash">{{ commit.sha }}</div>
+			<div class="rst">
+			    <div class="commit-message shadow-box">{{ commit.message_html|safe }}</div>
+			</div>
+		    </a>
+		</li>
+		{% endfor %}  {# commits #}
+	    </ul>
+	</li>
+	{% endfor %}  {# repos_list #}
+    </ul>
+</div> <!-- gitbored -->
