@@ -2,7 +2,7 @@
 # gitbored
 
 
-[`gitbored`](https://github.com/stnbu/gitbored) is a very simple Django app for displaying recent personal GitHub activity, using the GitHub API.
+[`gitbored`](https://github.com/stnbu/gitbored) is a Django app that displays recent personal GitHub activity in a single fully-customizable, relocatable element, using the GitHub API.
 
 A daemon that fetches and stores data locally is included.
 
