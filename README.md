@@ -6,7 +6,7 @@
 
 A daemon that fetches and stores data locally is included.
 
-You can see it in action here: https://unintuitive.org/portfolio/
+You can see it in action here: https://unintuitive.org/pages/portfolio/
 
 ## Usage/Installation
 
@@ -35,13 +35,14 @@ user:read:user
 ```
 
 Create a file at `~/.gitbored/API_AUTH` with contents of the form
+
 ```
 github-username:api-token
 ```
 
 (newlines and spaces are ignored)
 
-Of course this file should be readable but *security is up to you*. Be careful out there.
+Of course this file should be readable by the daemon but *security is up to you*. Be careful out there.
 
 ### Database changes
 
@@ -52,10 +53,6 @@ manage.py makemigrations gitbored && python manage.py migrate
 ```
 
 (Don't forget to backup your data first!)
-
-
-
-
 
 ### Run the daemon
 
@@ -113,8 +110,8 @@ Include the `gitbored` template in the body of _your_ template where appropriate
 Known issues, limitations
 -------------------------
 
-* _You_ must the daemon. You may wish to use your OS's "supervisor" or similar.
-* New records are never updated, so if a commit or a repository description changes for example, you'll need to go and delete the corresponding row yourself.
+* _You_ must run the daemon. You may wish to use your OS's "supervisor" or similar.
+* Records are never updated, so if a commit or a repository description changes for example, you'll need to go and delete the corresponding row yourself.
 * The data stuff is not particularly efficient or smart. Big Data might be problematic.
 * It's not very pluggable for a "plug-in" (contributions welcome!)
 * You must set `myapp.settings.TEMPLATES['APP_DIRS']=True` or work out access to the template yourself.
