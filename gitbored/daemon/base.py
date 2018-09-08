@@ -33,7 +33,9 @@ class GithubFeed(object):
 
     def update_repos(self):
         updates = []
-        url = self.gapi.get_url('/users/{username}/repos'.format(username=self.gapi.username))
+        # FIXME TODO -- we need to figure out https://developer.github.com/v3/guides/traversing-with-pagination/
+        # here and elsewhere.
+        url = self.gapi.get_url('/users/{username}/repos'.format(username=self.gapi.username), query='per_page=100')
         repos = self.gapi.get(url)
         logger.debug('considering {} repos...'.format(len(repos)))
         for repo in repos:
