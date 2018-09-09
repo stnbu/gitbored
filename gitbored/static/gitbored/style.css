@@ -13,10 +13,10 @@ a.commit-link {
 }
 
 .shadow-box {
-    border-radius: 10px;
+    border-radius: 2px;
     width: 75%;
-    padding: 15px;
-    box-shadow: 8px 8px 30px grey;
+    padding: 5px;
+    box-shadow: 1px 1px 30px grey;
     background-color: ghostwhite;
 }
 
@@ -26,10 +26,10 @@ a.commit-link {
 
 .commit-list {
     list-style: none;
-    padding-bottom: 80px;
+    padding-bottom: 10px;
 }
 
 .commit-hash {
-    padding-top: 35px;
-    padding-bottom: 15px;
+    padding-top: 30px;
+    padding-bottom: 10px;
 }
