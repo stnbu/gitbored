@@ -24,12 +24,31 @@ a.commit-link {
     list-style: none;
 }
 
+.repo-title {
+    padding-top: 20px;
+}
+
+.repo-more-link {
+    padding-top: 30px;
+    padding-left: 20px;
+}
+
 .commit-list {
     list-style: none;
     padding-bottom: 10px;
 }
 
-.commit-hash {
+.commit-header {
+    width: 75%;
     padding-top: 30px;
     padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.commit-hash {
+    float: left;
+}
+
+.commit-dt {
+    float: right;
 }

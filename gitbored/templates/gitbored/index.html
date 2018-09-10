@@ -15,7 +15,7 @@
 	{% for repo, blurb, commits in repos_list %}
 	<li class="repo">
 
-	    <h2 class="repo-title">Repository Name: <a href="{{ repo.html_url }}">{{ repo.name }}</a></h2>
+	    <h1 class="repo-title"><a href="{{ repo.html_url }}">{{ repo.name }}</a></h1>
 	    {% if repo.description %}
 	    <p class="repo-description shadow-box">{{ repo.description }}</p>
 	    {% endif %}  {# repo.description #}
@@ -24,18 +24,21 @@
 	    <p class="blurb shadow-box">{{ blurb.blurb }}</p>
 	    {% endif %}  {# blurb #}
 
-	    <h3>Commits...</h3>
 	    <ul class="commit-list">
 		{% for commit in commits %}
 		<li class="commit">
 		    <a class="commit-link" href="{{ commit.html_url }}">
-			<div class="commit-hash">{{ commit.sha }}</div>
+			<div class="commit-header">
+			    <div class="commit-hash">{{ commit.sha }}</div>
+			    <div class="commit-dt">{{ commit.dt }}</div>
+			</div>
 			<div class="rst">
 			    <div class="commit-message shadow-box">{{ commit.message_html|safe }}</div>
 			</div>
 		    </a>
 		</li>
 		{% endfor %}  {# commits #}
+		<li class="repo-more-link"><a href="{{ repo.html_url }}">more from {{ repo.name }}...</a></li>
 	    </ul>
 	</li>
 	{% endfor %}  {# repos_list #}
